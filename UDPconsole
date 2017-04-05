@@ -1,0 +1,177 @@
+using namespace std;
+
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+
+#include <iostream>
+#include <string>
+#include<Ws2tcpip.h>
+
+#include "UDPLabProtocol.h"
+
+#pragma comment(lib, "Ws2_32.lib")
+
+struct sockaddr_in sa;
+struct sockaddr_in RecvAddr;
+char str[INET_ADDRSTRLEN];
+
+int main()
+{
+	SOCKET SendSocket = INVALID_SOCKET;
+	int iResult;
+	int num = 0;
+	int nums[5];
+	bool correctNum = false;
+	bool countstart = false;
+	bool end = false;
+	bool loop = true;
+	string addMul;
+	char action = '0';
+	char address[12];
+	short count = 0;
+	short id = 1;
+	char *buf = new char;
+
+	WORD wVersionRequested;
+	WSADATA wsaData;
+	int err;
+
+	wVersionRequested = MAKEWORD(2, 2);
+
+	err = WSAStartup(wVersionRequested, &wsaData);
+
+　
+	while (end == false)
+	{
+		countstart = false;
+		correctNum = false;
+		action = '0';
+		count = 0;
+
+		while (correctNum == false) //loops until a proper number is inputed
+		{
+			cout << "Please enter 2-5 numbers to send: ";
+			cin >> num;
+
+			if (num > 9 && num < 100000)
+			{
+				cout << num << endl;
+				correctNum = true;
+
+				nums[0] = num % 10;
+				nums[1] = (num / 10) % 10;
+				nums[2] = (num / 100) % 10;
+				nums[3] = (num / 1000) % 10;
+				nums[4] = (num / 10000) % 10;
+
+				for (int i = 4; i > 0; i--)
+				{
+					if (nums[i] != 0)
+					{
+						countstart = true;
+					}
+
+					if (countstart == true)
+					{
+						count++;
+					}
+				}
+				count++;
+			}
+			else
+			{
+				cout << "Error please enter 2-5 numbers" << endl;
+			}
+		}
+
+		cout << "would you like to add or multiply numbers" << endl;
+
+		while (action != 2 && action != 1)
+		{
+			cin >> addMul;
+			if (addMul == "multiply" || addMul == "Multiply")
+			{
+				action = TYPE_MULTIPLY;
+			}
+			else if (addMul == "add" || addMul == "Add")
+			{
+				action = TYPE_ADD;
+			}
+			else
+			{
+				cout << "please enter add or multiply" << endl;
+			}
+		}
+
+		cout << "Who would you like to send this to ? " << endl;
+		cin >> address;
+
+		// store this IP address in sa:
+		inet_pton(AF_INET, address, &(sa.sin_addr));
+
+		// now get it back and print it
+		inet_ntop(AF_INET, &(sa.sin_addr), str, INET_ADDRSTRLEN);
+
+		cout << "count " << count << endl;
+		if (action == TYPE_ADD)
+		{
+			cout << "Add" << endl;
+		}
+		else
+		{
+			cout << "Multiply" << endl;
+		}
+		cout << "ID " << id << endl;
+		cout << nums[4] << nums[3] << nums[2] << nums[1] << nums[0] << endl;
+		cout << str << endl;
+
+		REQUEST send;
+		send.count = count;
+		send.id = id;
+		for (int i = 0; i< 5; i++)
+		{
+			send.numbers[i] = 0;
+		}
+
+		for (int i = 0; i < count; i++)
+		{
+			send.numbers[i] = nums[i];
+		}
+		send.type = action;
+
+		// Create a socket for sending data
+		SendSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+		if (SendSocket == INVALID_SOCKET) {
+			wprintf(L"socket failed with error: %ld\n", WSAGetLastError());
+			WSACleanup();
+			return 1;
+		}
+		//---------------------------------------------
+		// Set up the RecvAddr structure with the IP address of
+		// the receiver (in this example case "192.168.1.1")
+		// and the specified port number.
+		sa.sin_family = AF_INET;
+		sa.sin_port = htons(PORT);
+		sa.sin_addr.s_addr = inet_addr(address);
+
+		connect(SendSocket, (SOCKADDR *)& sa, sizeof(sa));
+
+		//---------------------------------------------
+		// Send a datagram to the receiver
+		cout << "Sending a datagram to the receiver..." << endl;
+		iResult = sendto(SendSocket, (char *)&send, sizeof(send), 0, (SOCKADDR *)& sa, 0);
+		if (iResult == SOCKET_ERROR) {
+			wprintf(L"sendto failed with error: %d\n", WSAGetLastError());
+			closesocket(SendSocket);
+			WSACleanup();
+			return 1;
+		}
+
+		iResult = recvfrom(SendSocket, buf, sizeof(buf), 0, (SOCKADDR *)& sa, 0);
+
+		cout << buf << endl;
+	}
+	closesocket(SendSocket);
+	WSACleanup();
+
+	return 0;
+}
